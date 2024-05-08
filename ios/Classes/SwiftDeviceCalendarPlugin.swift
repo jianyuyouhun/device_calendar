@@ -216,30 +216,26 @@ public class SwiftDeviceCalendarPlugin: NSObject, FlutterPlugin, EKEventViewDele
         }
 
     private func createCalendar(_ call: FlutterMethodCall, _ result: FlutterResult) {
-        let arguments = call.arguments as! Dictionary<String, AnyObject>
-        let calendar = EKCalendar.init(for: EKEntityType.event, eventStore: eventStore)
-        do {
+         do {
+            let arguments = call.arguments as! Dictionary<String, AnyObject>
+            let calendar = EKCalendar(for: .event, eventStore: eventStore)
             calendar.title = arguments[calendarNameArgument] as! String
-            let calendarColor = arguments[calendarColorArgument] as? String
+            calendar.cgColor = UIColor.purple.cgColor
 
-            if (calendarColor != nil) {
-                calendar.cgColor = UIColor(hex: calendarColor!)?.cgColor
-            }
-            else {
-                calendar.cgColor = UIColor(red: 255, green: 0, blue: 0, alpha: 0).cgColor // Red colour as a default
-            }
+            let `default` = eventStore.defaultCalendarForNewEvents?.source
+            let iCloud = eventStore.sources.first(where: { $0.title == "iCloud" }) // this is fragile, user can rename the source
+            let local = eventStore.sources.first(where: { $0.sourceType == .local })
 
-            guard let source = getSource() else {
-              result(FlutterError(code: self.genericError, message: "Local calendar was not found.", details: nil))
-              return
-            }
-
+            let source = iCloud ?? `default` ?? local
+            if (source != nil) {
                 calendar.source = source
+                try! eventStore.saveCalendar(calendar, commit: true)
+                result(calendar.calendarIdentifier)
+            } else {
+                result(FlutterError(code: self.genericError, message: "Local calendar was not found.", details: nil))
+            }
 
-            try eventStore.saveCalendar(calendar, commit: true)
-            result(calendar.calendarIdentifier)
-        }
-        catch {
+        } catch {
             eventStore.reset()
             result(FlutterError(code: self.genericError, message: error.localizedDescription, details: nil))
         }
